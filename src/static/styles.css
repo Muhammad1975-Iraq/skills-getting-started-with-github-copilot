@@ -67,11 +67,27 @@ body {
   font-size: 0.82rem;
 }
 
+.secondary-button,
+.mini-button {
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .secondary-button {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
   box-shadow: none;
+  padding: 10px 16px;
+}
+
+.mini-button {
+  background: var(--panel-alt);
+  color: var(--primary-dark);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
 }
 
 .layout {
@@ -91,11 +107,16 @@ body {
 }
 
 .overview-panel,
+.charts-panel,
 .dashboard-panel {
   min-height: 200px;
 }
 
 .overview-panel {
+  grid-column: 1 / span 1;
+}
+
+.charts-panel {
   grid-column: 1 / span 1;
 }
 
@@ -105,7 +126,7 @@ body {
 
 .side-panel {
   grid-column: 2 / span 1;
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
 }
 
 .panel-heading {
@@ -160,6 +181,37 @@ body {
   margin-top: 8px;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+}
+
+.chart-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 220px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.filter-row label {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.filter-row select {
+  min-width: 180px;
 }
 
 .activity-grid {
@@ -329,5 +381,9 @@ footer {
   .side-panel {
     grid-column: auto;
     grid-row: auto;
+  }
+
+  .chart-grid {
+    grid-template-columns: 1fr;
   }
 }

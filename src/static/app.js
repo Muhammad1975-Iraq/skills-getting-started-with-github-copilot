@@ -2,12 +2,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitiesList = document.getElementById("activity-grid");
   const summaryCards = document.getElementById("summary-cards");
   const activitySelect = document.getElementById("activity");
+  const activityFilter = document.getElementById("activity-filter");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
   const recentSignupsList = document.getElementById("recent-signups");
   const downloadExcelButton = document.getElementById("download-excel");
+  const resetFilterButton = document.getElementById("reset-filter");
 
   let dashboardData = { summary: {}, activities: {} };
+  let capacityChart = null;
+  let utilizationChart = null;
 
   function buildMetricCard(label, value, meta) {
     return `
@@ -17,6 +21,17 @@ document.addEventListener("DOMContentLoaded", () => {
         <span class="metric-meta">${meta}</span>
       </div>
     `;
+  }
+
+  function getFilteredActivities() {
+    const selected = activityFilter.value;
+    if (!selected || selected === "all") {
+      return dashboardData.activities || {};
+    }
+
+    return {
+      [selected]: dashboardData.activities[selected]
+    };
   }
 
   function renderSummary(summary = {}) {
@@ -85,12 +100,93 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function populateActivitySelect(activities = {}) {
     activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+    activityFilter.innerHTML = '<option value="all">All activities</option>';
 
     Object.keys(activities).forEach((name) => {
       const option = document.createElement("option");
       option.value = name;
       option.textContent = name;
-      activitySelect.appendChild(option);
+      activitySelect.appendChild(option.cloneNode(true));
+
+      const filterOption = document.createElement("option");
+      filterOption.value = name;
+      filterOption.textContent = name;
+      activityFilter.appendChild(filterOption);
+    });
+  }
+
+  function renderCharts(activities = {}) {
+    const labels = Object.keys(activities);
+    const usedSeats = labels.map((name) => (activities[name].participants || []).length);
+    const availableSeats = labels.map((name) => {
+      const max = activities[name].max_participants || 0;
+      return Math.max(0, max - (activities[name].participants || []).length);
+    });
+
+    if (capacityChart) capacityChart.destroy();
+    if (utilizationChart) utilizationChart.destroy();
+
+    const barContext = document.getElementById("capacityChart");
+    capacityChart = new Chart(barContext, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Used seats",
+            data: usedSeats,
+            backgroundColor: "#1d4ed8",
+            borderRadius: 6
+          },
+          {
+            label: "Open seats",
+            data: availableSeats,
+            backgroundColor: "#93c5fd",
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    const donutContext = document.getElementById("utilizationChart");
+    utilizationChart = new Chart(donutContext, {
+      type: "doughnut",
+      data: {
+        labels: labels.length ? labels : ["No data"],
+        datasets: [{
+          data: labels.length ? labels.map((name) => {
+            const total = activities[name].max_participants || 0;
+            const used = (activities[name].participants || []).length;
+            return total ? Math.min(100, Math.round((used / total) * 100)) : 0;
+          }) : [100],
+          backgroundColor: [
+            "#1d4ed8",
+            "#3b82f6",
+            "#60a5fa",
+            "#93c5fd",
+            "#c4b5fd",
+            "#a78bfa"
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "bottom"
+          }
+        }
+      }
     });
   }
 
@@ -103,9 +199,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const summary = data.summary || {};
 
       renderSummary(summary);
-      renderActivities(activities);
+      renderActivities(getFilteredActivities());
+      renderRecentSignups(getFilteredActivities());
+      renderCharts(activities);
       populateActivitySelect(activities);
-      renderRecentSignups(activities);
+      activityFilter.value = activityFilter.value || "all";
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
@@ -123,21 +221,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function exportDashboardToExcel() {
-    const summary = dashboardData.summary || {};
-    const activities = dashboardData.activities || {};
+    const selected = activityFilter.value;
+    const exportData = selected && selected !== "all"
+      ? { [selected]: dashboardData.activities[selected] }
+      : dashboardData.activities || {};
 
+    const summary = dashboardData.summary || {};
     const summaryRows = [
       ["Metric", "Value"],
       ["Total Activities", summary.total_activities ?? 0],
       ["Total Participants", summary.total_participants ?? 0],
       ["Open Slots", summary.open_slots ?? 0],
       ["Capacity", summary.capacity ?? 0],
-      ["Utilization %", summary.utilization ?? 0]
+      ["Utilization %", summary.utilization ?? 0],
+      ["Export Scope", selected === "all" ? "All activities" : selected]
     ];
 
     const activityRows = [
       ["Activity", "Description", "Schedule", "Max Participants", "Participants Count", "Participants"],
-      ...Object.entries(activities).map(([name, details]) => [
+      ...Object.entries(exportData).map(([name, details]) => [
         name,
         details.description || "",
         details.schedule || "",
@@ -155,7 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const activitySheet = XLSX.utils.aoa_to_sheet(activityRows);
     XLSX.utils.book_append_sheet(workbook, activitySheet, "Activities");
 
-    XLSX.writeFile(workbook, "rixios-dashboard.xlsx");
+    XLSX.writeFile(workbook, selected === "all" ? "rixios-dashboard.xlsx" : `rixios-${selected.replace(/\s+/g, "-").toLowerCase()}.xlsx`);
   }
 
   signupForm.addEventListener("submit", async (event) => {
@@ -185,6 +287,19 @@ document.addEventListener("DOMContentLoaded", () => {
       showMessage("Failed to sign up. Please try again.", "error");
       console.error("Error signing up:", error);
     }
+  });
+
+  activityFilter.addEventListener("change", () => {
+    const filtered = getFilteredActivities();
+    renderActivities(filtered);
+    renderRecentSignups(filtered);
+  });
+
+  resetFilterButton.addEventListener("click", () => {
+    activityFilter.value = "all";
+    const filtered = getFilteredActivities();
+    renderActivities(filtered);
+    renderRecentSignups(filtered);
   });
 
   downloadExcelButton.addEventListener("click", exportDashboardToExcel);
