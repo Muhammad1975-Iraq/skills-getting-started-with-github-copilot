@@ -52,6 +52,27 @@ def get_activities():
     return activities
 
 
+@app.get("/dashboard")
+def get_dashboard():
+    """Return activity data plus summary stats for the dashboard."""
+    total_activities = len(activities)
+    total_participants = sum(len(details["participants"]) for details in activities.values())
+    total_capacity = sum(details["max_participants"] for details in activities.values())
+    open_slots = total_capacity - total_participants
+    utilization = round((total_participants / total_capacity) * 100, 1) if total_capacity else 0
+
+    return {
+        "summary": {
+            "total_activities": total_activities,
+            "total_participants": total_participants,
+            "open_slots": open_slots,
+            "capacity": total_capacity,
+            "utilization": utilization,
+        },
+        "activities": activities,
+    }
+
+
 @app.post("/activities/{activity_name}/signup")
 def signup_for_activity(activity_name: str, email: str):
     """Sign up a student for an activity"""
@@ -61,6 +82,10 @@ def signup_for_activity(activity_name: str, email: str):
 
     # Get the specific activity
     activity = activities[activity_name]
+
+    # Validate student is not already signed up
+    if email in activity["participants"]:
+        raise HTTPException(status_code=400, detail="Student is already signed up")
 
     # Add student
     activity["participants"].append(email)
